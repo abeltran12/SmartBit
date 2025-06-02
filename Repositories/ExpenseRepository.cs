@@ -30,7 +30,8 @@ namespace SmartBit.Repositories
                 if (currentBalance < totalExpenseAmount)
                     throw new InvalidOperationException($"Insufficient balance. Available: ${currentBalance:N2}, Required: ${totalExpenseAmount:N2}");
 
-                await CreateAsync(expense);
+                _dbContext.Expenses.Add(expense);
+                await _dbContext.SaveChangesAsync();
                 await transaction.CommitAsync();
             }
             catch
