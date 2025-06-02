@@ -30,7 +30,6 @@ namespace SmartBit.Repositories
                 if (currentBalance < totalExpenseAmount)
                     throw new InvalidOperationException($"Insufficient balance. Available: ${currentBalance:N2}, Required: ${totalExpenseAmount:N2}");
 
-                // Insertar los nuevos registros
                 await CreateAsync(expense);
                 await transaction.CommitAsync();
             }

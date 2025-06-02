@@ -12,20 +12,23 @@ namespace SmartBit.Services
     public class MonetaryFundService : IMonetaryFundService
     {
         private readonly IMonetaryFundRepository _repository;
-        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly AuthenticationStateProvider _authProvider;
 
         public MonetaryFundService(
             IMonetaryFundRepository repository,
-            IHttpContextAccessor httpContextAccessor)
+            AuthenticationStateProvider authProvider)
         {
             _repository = repository;
-            _httpContextAccessor = httpContextAccessor;
+            _authProvider = authProvider;
         }
 
         public async Task CreateAsync(MonetaryFund monetaryFund)
         {
-            var user = _httpContextAccessor.HttpContext?.User;
-            var userId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = await GetUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new UnauthorizedAccessException("User not authenticated");
+            }
 
             monetaryFund.ApplicationUserId = userId!;
             await _repository.CreateAsync(monetaryFund);
@@ -53,6 +56,24 @@ namespace SmartBit.Services
         {
             await _repository.GetAsync(monetaryFund.Id);
             await _repository.UpdateAsync(monetaryFund);
+        }
+
+        private async Task<string?> GetUserId()
+        {
+            try
+            {
+                var authState = await _authProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+
+                if (user.Identity?.IsAuthenticated != true)
+                    return null;
+
+                return user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }
