@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
 using SmartBit.Models;
 using SmartBit.Repositories;
 
@@ -7,19 +8,19 @@ namespace SmartBit.Services
     public class DepositService : IDepositService
     {
         private readonly IDepositRepository _repository;
-        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly AuthenticationStateProvider _authProvider;
 
         public DepositService(
             IDepositRepository repository,
-            IHttpContextAccessor httpContextAccessor)
+            AuthenticationStateProvider authProvider)
         {
             _repository = repository;
-            _httpContextAccessor = httpContextAccessor;
+            _authProvider = authProvider;
         }
 
         public async Task CreateAsync(Deposit deposit)
         {
-            var userId = GetUserId();
+            var userId = await GetUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 throw new UnauthorizedAccessException("User not authenticated");
@@ -31,7 +32,7 @@ namespace SmartBit.Services
 
         public async Task<List<Deposit>> GetAllAsync()
         {
-            var userId = GetUserId();
+            var userId = await GetUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 throw new UnauthorizedAccessException("User not authenticated");
@@ -43,7 +44,7 @@ namespace SmartBit.Services
 
         public async Task<Deposit?> GetAsync(Guid id)
         {
-            var userId = GetUserId();
+            var userId = await GetUserId();
             if (string.IsNullOrEmpty(userId))
             {
                 throw new UnauthorizedAccessException("User not authenticated");
@@ -53,19 +54,17 @@ namespace SmartBit.Services
             return expenseType ?? throw new KeyNotFoundException("Object not found");
         }
 
-        private string? GetUserId()
+        private async Task<string?> GetUserId()
         {
             try
             {
-                var httpContext = _httpContextAccessor.HttpContext;
-                if (httpContext?.User?.Identity?.IsAuthenticated != true)
-                {
+                var authState = await _authProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+
+                if (user.Identity?.IsAuthenticated != true)
                     return null;
-                }
 
-                var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-                return userId;
+                return user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             }
             catch
             {

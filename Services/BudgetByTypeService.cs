@@ -1,23 +1,23 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
 using SmartBit.Dtos;
-using SmartBit.Models;
 using SmartBit.Repositories;
 
 namespace SmartBit.Services
 {
     public class BudgetByTypeService : IBudgetByTypeService
     {
-        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly AuthenticationStateProvider _authProvider;
         private readonly IDepositRepository _depositRepository;
         private readonly IExpenseRepository _expenseRepository;
 
         public BudgetByTypeService(
-            IHttpContextAccessor httpContextAccessor,
+            AuthenticationStateProvider authProvider,
             IDepositRepository depositRepository,
             IExpenseRepository expenseRepository
             )
         {
-            _httpContextAccessor = httpContextAccessor;
+            _authProvider = authProvider;
             _depositRepository = depositRepository;
             _expenseRepository = expenseRepository;
         }
@@ -25,7 +25,7 @@ namespace SmartBit.Services
         public async Task<List<MovementQueryDTO>> LoadExpensesAndBudgetByDatesAsync
             (DateTime fromDate, DateTime toDate)
         {
-            string? userId = GetUserId();
+            string? userId = await GetUserId();
 
             if (string.IsNullOrEmpty(userId))
             {
@@ -70,7 +70,7 @@ namespace SmartBit.Services
 
         public async Task<(double budget, double expense)> LoadMonthData(int month)
         {
-            string? userId = GetUserId();
+            string? userId = await GetUserId();
 
             if (string.IsNullOrEmpty(userId))
             {
@@ -83,19 +83,17 @@ namespace SmartBit.Services
             return (budget, expense);
         }
 
-        private string? GetUserId()
+        private async Task<string?> GetUserId()
         {
             try
             {
-                var httpContext = _httpContextAccessor.HttpContext;
-                if (httpContext?.User?.Identity?.IsAuthenticated != true)
-                {
+                var authState = await _authProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+
+                if (user.Identity?.IsAuthenticated != true)
                     return null;
-                }
 
-                var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-                return userId;
+                return user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             }
             catch
             {
