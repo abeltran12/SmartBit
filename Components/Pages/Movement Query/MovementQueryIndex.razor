@@ -1,0 +1,326 @@
+@page "/movement-querys"
+@using SmartBit.Dtos
+@attribute [Authorize]
+@inject IBudgetByTypeService BudgetService
+
+<div class="expense-types-container">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="title-container">
+            <h1 class="page-title">
+                <i class="fas fa-exchange-alt"></i>
+                Movement Queries
+            </h1>
+            <p class="page-subtitle">Search and view your deposits and expenses by date range</p>
+        </div>
+    </div>
+
+    <!-- Search Controls -->
+    <div class="search-controls-container">
+        <div class="search-container">
+            <div class="search-field">
+                <label class="form-label">From Date:</label>
+                <input type="date" @bind="fromDate" class="form-control" />
+            </div>
+            
+            <div class="search-field">
+                <label class="form-label">To Date:</label>
+                <input type="date" @bind="toData" class="form-control" />
+            </div>
+            
+            <div class="search-field">
+                <button type="button" class="btn-create" @onclick="SearchData" disabled="@Searching">
+                    @if (Searching)
+                    {
+                        <span>Searching...</span>
+                    }
+                    else
+                    {
+                        <span>Search</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    @if (Searching)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading movement data...</p>
+        </div>
+    }
+
+    <!-- Error Message -->
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            @Message
+        </div>
+    }
+
+    <!-- Results Section -->
+    @if (!Searching && string.IsNullOrEmpty(Message))
+    {
+        <!-- Deposits Table -->
+        <div class="expense-types-container">
+            <div class="section-container">
+                <h2 class="section-title">
+                    <i class="fas fa-arrow-down"></i>
+                    Movements
+                </h2>
+                
+                <div class="table-container">
+                    <div class="table-wrapper">
+                        @if (MovementQueryDTOs.Any())
+                        {
+                            <table class="expense-table">
+                                <thead>
+                                    <tr>
+                                        <th><i class="fas fa-calendar"></i>Date</th>
+                                        <th><i class="fas fa-dollar-sign"></i>Amount</th>
+                                        <th><i class="fas fa-align-left"></i>Monetary Fund</th>
+                                        <th><i class="fas fa-align-left"></i>Type</th>
+                                        <th><i class="fas fa-eye"></i>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var deposit in MovementQueryDTOs)
+                                    {
+                                        <tr class="table-row">
+                                            <td class="date-cell">@deposit.Date.ToString("MMM dd, yyyy")</td>
+                                                <td class="amount-cell positive-amount">$@deposit.Amount.ToString("N2")</td>      
+                                            <td class="fundname-cell">@deposit.MonetaryFundName</td>
+                                           @if (!deposit.Expense)
+                                            {
+                                                <td class="type-cell">
+                                                    <span class="badge bg-success">Deposit</span>
+                                                </td>
+                                                <td class="actions-cell">
+                                                    <button class="btn-action btn-edit" @onclick="() => ViewDeposit(deposit)">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </td>
+                                            }
+                                            else 
+                                            {
+                                                <td class="type-cell">
+                                                    <span class="badge bg-danger">Expense</span>
+                                                </td>
+                                                <td class="actions-cell">
+                                                    <button class="btn-action btn-edit" @onclick="() => ViewExpense(deposit)">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </td>
+                                            }
+                                            
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <h3>No Deposits Found</h3>
+                                <p>No deposits were found for the selected date range.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Deposit Detail Modal -->
+@if (showDepositModal && selectedDeposit != null)
+{
+    <div class="modal-overlay" @onclick="CloseDepositModal">
+    <div class="modal-content" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>See Deposit</h3>
+            <button class="modal-close" @onclick="CloseDepositModal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <EditForm Model="selectedDeposit" OnValidSubmit="HandleValidSubmit">    
+                <div class="form-group">
+                    <label for="date">Fecha: <span class="required">*</span></label>
+                    <InputDate id="date" @bind-Value="selectedDeposit.Date" class="form-control" disabled="true" />
+                </div>
+
+                <div class="form-group">
+                    <label for="amount">Monto: <span class="required">*</span></label>
+                    <InputNumber id="amount" @bind-Value="selectedDeposit.Amount" class="form-control" step="0.01" disabled="true" />
+                </div>  
+                
+                <div class="form-group">
+                    <label for="monetaryFundId">Fondo Monetario: <span class="required">*</span></label>
+                    <InputText id="monetaryFundId" @bind-Value="selectedDeposit.MonetaryFundName" class="form-control" disabled />
+                </div>
+                
+            </EditForm>
+        </div>
+    </div>
+</div>
+}
+ 
+@if (showExpenseModal && selectedExpense != null)
+{
+    <div class="modal-overlay" @onclick="CloseExpenseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Expense Details</h3>
+                <button class="modal-close" @onclick="CloseExpenseModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Encabezado con información general -->
+                <div class="expense-header">
+                    <div class="detail-row">
+                        <strong>Date:</strong>
+                        <span>@selectedExpense.Date.ToString("MMMM dd, yyyy")</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Business Name:</strong>
+                        <span>@selectedExpense.BusinessName</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Document Type:</strong>
+                        <span>@selectedExpense.DocumentType</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Monetary Fund:</strong>
+                        <span>@selectedExpense.MonetaryFundName</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedExpense.Observations))
+                    {
+                        <div class="detail-row">
+                            <strong>Observations:</strong>
+                            <span>@selectedExpense.Observations</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Tabla de detalles de gastos -->
+                @if (selectedExpense.ExpenseDetails?.Any() == true)
+                {
+                    <div class="expense-details-section">
+                        <h4>Expense Breakdown</h4>
+                        <table class="expense-details-table">
+                            <thead>
+                                <tr>
+                                    <th>Expense Type</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var detail in selectedExpense.ExpenseDetails)
+                                {
+                                    <tr>
+                                        <td>@detail.ExpenseTypeName</td>
+                                        <td class="amount-cell">$@detail.Amount.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr class="total-row">
+                                    <td><strong>Total Amount:</strong></td>
+                                    <td class="amount-cell"><strong>$@selectedExpense.TotalAmount.ToString("N2")</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<MovementQueryDTO> MovementQueryDTOs { get; set; } = new();
+
+    private DateTime fromDate { get; set; } = DateTime.Now;
+
+    private DateTime toData { get; set; } = DateTime.Now.AddDays(1);
+
+    public string Message = "";
+
+    public bool Searching { get; set; } = false;
+
+    // Modal state
+    private bool showDepositModal = false;
+    private bool showExpenseModal = false;
+    private MovementQueryDTO? selectedDeposit = null;
+    private MovementQueryDTO? selectedExpense = null;
+
+    private async Task SearchData()
+    {
+        if (fromDate > toData)
+        {
+            Message = "Start date cannot be greater than end date";
+            return;
+        }
+        await LoadDataByDate(fromDate, toData);
+    }
+
+    private async Task LoadDataByDate(DateTime fromData, DateTime toDate)
+    {
+        try
+        {
+            Searching = true;
+            Message = "";
+            StateHasChanged();
+
+            var result = await BudgetService.LoadExpensesAndBudgetByDatesAsync(fromData, toDate);
+
+            MovementQueryDTOs = result;
+        }
+        catch
+        {
+            Message = "An error occurred while loading the data";
+        }
+        finally
+        {
+            Searching = false;
+            StateHasChanged();
+        }
+    }
+
+    // Modal methods
+    private void ViewDeposit(MovementQueryDTO deposit)
+    {
+        selectedDeposit = deposit;
+        showDepositModal = true;
+    }
+
+    private void CloseDepositModal()
+    {
+        showDepositModal = false;
+        selectedDeposit = null;
+    }
+
+    private void ViewExpense(MovementQueryDTO deposit)
+    {
+        selectedExpense = deposit;
+        showExpenseModal = true;
+    }
+
+    private void CloseExpenseModal()
+    {
+        showExpenseModal = false;
+        selectedExpense = null;
+    }
+
+    protected void HandleValidSubmit()
+    {
+
+    }
+}

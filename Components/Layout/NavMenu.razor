@@ -1,0 +1,165 @@
+﻿@implements IDisposable
+@inject NavigationManager NavigationManager
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">SmartBit</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+
+        <AuthorizeView>
+            <Authorized>
+                <!-- Título de sección -->
+                <div class="nav-section-header">Maintenance</div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-sub" href="/expense-types">
+                        <span class="bi bi-tag" aria-hidden="true"></span> Expense Types
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-sub" href="/monetary-funds">
+                        <span class="bi bi-currency-dollar" aria-hidden="true"></span> Monetary Fund
+                    </NavLink>
+                </div>
+
+                <!-- Título de sección -->
+                <div class="nav-section-header">Movements</div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-sub" href="/budgetbytype">
+                        <span class="bi bi-pie-chart" aria-hidden="true"></span> Budget By Type
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-sub" href="/payments">
+                        <span class="bi bi-receipt" aria-hidden="true"></span> Payments
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-sub" href="/deposits">
+                        <span class="bi bi-wallet2" aria-hidden="true"></span> Deposits
+                    </NavLink>
+                </div>
+
+                <!-- Título de sección -->
+                <div class="nav-section-header">Queries and Reports</div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-sub" href="/movement-querys">
+                        <span class="bi bi-search" aria-hidden="true"></span> Movement Query
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link nav-sub" href="/charts">
+                        <span class="bi bi-bar-chart" aria-hidden="true"></span> Charts
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <form action="Account/Logout" method="post">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                        <button type="submit" class="nav-link">
+                            <span class="bi bi-box-arrow-left" aria-hidden="true"></span> Logout
+                        </button>
+                    </form>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Login">
+                        <span class="bi bi-person-badge" aria-hidden="true"></span> Login
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</div>
+
+<style>
+    .nav-group-toggle {
+        width: 100%;
+        text-align: left;
+        border: none;
+        background: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .nav-group-toggle:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-sub-link {
+        padding-left: 2.5rem !important;
+        font-size: 0.9rem;
+    }
+
+    .nav-sub-link:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .toggle-icon {
+        transition: transform 0.2s ease;
+    }
+
+    .nav-group-toggle[aria-expanded="true"] .toggle-icon {
+        transform: rotate(180deg);
+    }
+
+    .nav-group-content {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+
+    .nav-section-header {
+    color: #fff;
+    font-weight: bold;
+    font-size: 0.85rem;
+    padding: 0.75rem 1.5rem 0.25rem 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.8;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    margin-top: 0.5rem;
+}
+
+.nav-section-header:first-of-type {
+    border-top: none;
+    margin-top: 0;
+}
+
+.nav-sub {
+    padding-left: 2.5rem !important;
+    font-size: 0.9rem;
+}
+</style>
+
+@code {
+    private string? currentUrl;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}

@@ -1,0 +1,153 @@
+@page "/budgetbytype"
+@attribute [Authorize]
+@inject IBudgetByTypeService BudgetService
+
+<div class="expense-types-container">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="title-container">
+            <h1 class="page-title">
+                <i class="fas fa-chart-pie"></i>
+                Budget by Type
+            </h1>
+            <p class="page-subtitle">View and compare your monthly budget vs expenses</p>
+        </div>
+    </div>
+
+    <!-- Search Controls -->
+    <div class="search-controls-container">
+        <div class="search-container">
+            <div class="search-field">
+                <label class="form-label">Year:</label>
+                <input type="text" value="2025" class="form-control year-input" readonly />
+            </div>
+            
+            <div class="search-field">
+                <label class="form-label">Month:</label>
+                <select @bind="SelectedMonth" class="form-control month-select">
+                    <option value="1">Enero</option>
+                    <option value="2">Febrero</option>
+                    <option value="3">Marzo</option>
+                    <option value="4">Abril</option>
+                    <option value="5">Mayo</option>
+                    <option value="6">Junio</option>
+                    <option value="7">Julio</option>
+                    <option value="8">Agosto</option>
+                    <option value="9">Septiembre</option>
+                    <option value="10">Octubre</option>
+                    <option value="11">Noviembre</option>
+                    <option value="12">Diciembre</option>
+                </select>
+            </div>
+            
+            <div class="search-field">
+                <button type="button" class="btn-create" @onclick="SearchData" disabled="@Searching">
+                    @if (Searching)
+                    {
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Loading...</span>
+                    }
+                    else
+                    {
+                        <i class="fas fa-search"></i>
+                        <span>Search</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    @if (Searching)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    }
+
+    <!-- Error Message -->
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            @Message
+        </div>
+    }
+
+    <!-- Results Table -->
+    @if (!Searching && string.IsNullOrEmpty(Message))
+    {
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card budget-card">
+                <div class="card-icon">
+                    <i class="fas fa-piggy-bank"></i>
+                </div>
+                <div class="card-content">
+                    <h3>Presupuesto Total</h3>
+                    <p class="card-amount">$@Budget.ToString("N2")</p>
+                </div>
+            </div>
+            
+            <div class="summary-card expenses-card">
+                <div class="card-icon">
+                    <i class="fas fa-receipt"></i>
+                </div>
+                <div class="card-content">
+                    <h3>Gastos Totales</h3>
+                    <p class="card-amount">$@Expenses.ToString("N2")</p>
+                </div>
+            </div>
+            
+            <div class="summary-card balance-card">
+                <div class="card-icon">
+                    <i class="fas fa-balance-scale"></i>
+                </div>
+                <div class="card-content">
+                    <h3>Balance</h3>
+                    <p class="card-amount @(Budget - Expenses >= 0 ? "positive" : "negative")">
+                        $@((Budget - Expenses).ToString("N2"))
+                    </p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    public int SelectedMonth { get; set; } = DateTime.Now.Month;
+    public bool Searching { get; set; } = false;
+    public double Budget { get; set; } = 0;
+    public double Expenses { get; set; } = 0;
+    public string Message = "";
+
+    private async Task SearchData()
+    {
+        await LoadMonthData(SelectedMonth);
+    }
+
+    private async Task LoadMonthData(int month)
+    {
+        try
+        {
+            Searching = true;
+            Message = "";
+            StateHasChanged();
+
+            var result = await BudgetService.LoadMonthData(month);
+
+            Expenses = result.expense;
+            Budget = result.budget;
+        }
+        catch
+        {
+            Message = "An error occurred while loading the data";
+        }
+        finally
+        {
+            Searching = false;
+            StateHasChanged();
+        }
+    }
+}

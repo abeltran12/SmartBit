@@ -1,0 +1,230 @@
+@page "/deposits"
+@inject IDepositService Service
+@inject IMonetaryFundService MonetaryService
+@attribute [Authorize]
+@inject IJSRuntime JS
+
+<div class="expense-types-container">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="title-container">
+            <h1 class="page-title">
+                <i class="fas fa-university"></i>
+                Deposits
+            </h1>
+            <p class="page-subtitle">Manage the system's Deposits</p>
+        </div>
+        
+        <button class="btn-create" @onclick="CreateDeposit">
+            <i class="fas fa-plus"></i>
+            Create New Deposit
+        </button>
+    </div>
+
+    <!-- Message Alert -->
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            @Message
+        </div>
+    }
+
+    <!-- Loading State -->
+    @if (Loading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Data Table -->
+        <div class="table-container">
+            @if (Deposits.Any())
+            {
+                <div class="table-wrapper">
+                    <table class="expense-table">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-calendar"></i> Date</th>
+                                <th><i class="fas fa-dollar-sign"></i> Amount</th>
+                                <th><i class="fas fa-university"></i> Monetary Fund</th>
+                                <th><i class="fas fa-cogs"></i> Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var deposit in Deposits)
+                            {
+                                <tr class="table-row">
+                                    <td class="date-cell">@deposit.Date.ToShortDateString()</td>
+                                    <td class="amount-cell">@deposit.Amount.ToString("C")</td>
+                                    <td class="monetary-fund-cell">@deposit.MonetaryFundName</td>
+                                    <td class="actions-cell">
+                                        <button class="btn-action btn-edit" @onclick="() => ViewDeposit(deposit)" title="Edit">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No Deposits</h3>
+                    <p>Start by creating your first deposit</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>@(IsView ? "See" : "Create") Deposit</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <EditForm Model="DepositModel" OnValidSubmit="SaveDeposit">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="form-group">
+                            <label for="date">Date: <span class="required">*</span>  (Year 2025 only)</label>
+                            <InputDate id="date" @bind-Value="DepositModel.Date" class="form-control" 
+                                disabled="@IsView" 
+                                min="2025-01-01" 
+                                max="2025-12-31" />
+                            <ValidationMessage For="@(() => DepositModel.Date)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="amount">Amount: <span class="required">*</span></label>
+                        <InputNumber id="amount" @bind-Value="DepositModel.Amount" class="form-control" step="0.01" format-value="F2" disabled="@IsView" />
+                        <ValidationMessage For="@(() => DepositModel.Amount)" />
+                    </div>  
+                    
+                    <div class="form-group">
+                        <label for="monetaryFundId">Monetary Funds: <span class="required">*</span></label>
+                        <InputSelect id="monetaryFundId" @bind-Value="DepositModel.MonetaryFundId" class="form-control" disabled="@IsView">
+                            <option value="0">-- Select Monetary Fund --</option>
+                            @foreach (var fund in MonetaryFunds)
+                            {
+                                <option value="@fund.Id">@fund.Name</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => DepositModel.MonetaryFundId)" />
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" @onclick="CloseModal">Cancel</button>
+
+                            <button type="submit" class="btn-save">Save</button>
+                        
+                    </div>
+                    
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Deposit> Deposits { get; set; } = new();
+    
+    private List<MonetaryFund> MonetaryFunds { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
+    public bool Loading { get; set; } = true;
+    public bool ShowModal { get; set; } = false;
+    public bool IsView { get; set; } = true;
+    public Deposit DepositModel { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        await LoadMonetaryFunds();
+        Loading = false;
+    }
+
+    protected async Task LoadData()
+    {
+        try
+        {
+            Deposits = await Service.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error loading data: {ex.Message}";
+        }
+    }
+
+    protected async Task LoadMonetaryFunds()
+    {
+        try
+        {
+            MonetaryFunds = await MonetaryService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error loading data: {ex.Message}";
+        }
+    }
+
+    protected void CreateDeposit()
+    {
+        DepositModel = new Deposit();
+        DepositModel.Date = DateTime.Now;
+        DepositModel.MonetaryFundId = Guid.Empty;
+        IsView = false;
+        ShowModal = true;
+    }
+
+    protected void ViewDeposit(Deposit deposit)
+    {
+        DepositModel = new Deposit
+        {
+            Id = deposit.Id,
+            Date = deposit.Date,
+            Amount = deposit.Amount,
+            MonetaryFundId = deposit.MonetaryFundId
+        };
+
+        IsView = true;
+        ShowModal = true;
+    }
+
+    protected void CloseModal()
+    {
+        ShowModal = false;
+        DepositModel = new();
+        Message = string.Empty;
+    }
+
+    protected async Task SaveDeposit()
+    {
+        try
+        {
+            await Service.CreateAsync(DepositModel);
+            Message = "Deposit created successfully";
+                        
+            await LoadData();
+            CloseModal();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+        }
+    }
+
+}

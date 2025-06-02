@@ -1,0 +1,146 @@
+@page "/charts"
+@using SmartBit.Dtos
+@attribute [Authorize]
+@inject IBudgetByTypeService BudgetService
+@inject IJSRuntime JS
+
+<div class="expense-types-container">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="title-container">
+            <h1 class="page-title">
+                <i class="fas fa-exchange-alt"></i>
+                Chart
+            </h1>
+            <p class="page-subtitle">Search and view your deposits and expenses by date range</p>
+        </div>
+    </div>
+
+    <!-- Search Controls -->
+    <div class="search-controls-container">
+        <div class="search-container">
+            <div class="search-field">
+                <label class="form-label">From Date:</label>
+                <input type="date" @bind="fromDate" class="form-control" />
+            </div>
+            
+            <div class="search-field">
+                <label class="form-label">To Date:</label>
+                <input type="date" @bind="toData" class="form-control" />
+            </div>
+            
+            <div class="search-field">
+                <button type="button" class="btn-create" @onclick="SearchData" disabled="@Searching">
+                    @if (Searching)
+                    {
+                        <span>Searching...</span>
+                    }
+                    else
+                    {
+                        <span>Search</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    @if (Searching)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading movement data...</p>
+        </div>
+    }
+
+    <!-- Error Message -->
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            @Message
+        </div>
+    }
+
+    <!-- Results Section -->
+    @if (!Searching && string.IsNullOrEmpty(Message))
+    {
+        <div>
+            <canvas id="bankChart" width="400" height="200"></canvas>
+        </div>
+
+    }
+
+</div>
+
+@code {
+    private List<ChartResponse> Charts { get; set; } = new();
+
+    private DateTime fromDate { get; set; } = DateTime.Now;
+
+    private DateTime toData { get; set; } = DateTime.Now.AddDays(1);
+
+    public string Message = "";
+
+    public bool Searching { get; set; } = false;
+
+    private bool shouldRenderChart;
+
+    private string[] labels = Array.Empty<string>();
+    private double[] gastos = Array.Empty<double>();
+    private double[] depositos = Array.Empty<double>();
+
+    private async Task SearchData()
+    {
+        if (fromDate > toData)
+        {
+            Message = "Start date cannot be greater than end date";
+            return;
+        }
+        await LoadDataByDate(fromDate, toData);
+    }
+
+    private async Task LoadDataByDate(DateTime fromData, DateTime toDate)
+    {
+        try
+        {
+            Searching = true;
+            Message = "";
+            StateHasChanged();
+
+            var result = await BudgetService
+                .LoadExpensesAndBudgetByDatesByMonetaryFundAsync(fromData, toDate);
+
+            Charts = result;
+
+            if (Charts?.Any() == true)
+            {
+                labels = Charts.Select(c => c.MonetaryFundName).ToArray();
+                gastos = Charts.Select(c => c.ExpensesAmount).ToArray();
+                depositos = Charts.Select(c => c.DepositAmount).ToArray();
+
+                shouldRenderChart = true;
+            }
+        }
+        catch
+        {
+            Message = "An error occurred while loading the data";
+        }
+        finally
+        {
+            Searching = false;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (shouldRenderChart)
+        {
+            shouldRenderChart = false;
+
+            await JS.InvokeVoidAsync("renderBankChart", "bankChart", labels, gastos, depositos);
+        }
+    }
+
+}

@@ -1,0 +1,254 @@
+@page "/expense-types"
+@attribute [Authorize]
+@inject IExpenseTypeService ExpenseRepo
+@inject IJSRuntime JS
+
+<div class="expense-types-container">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="title-container">
+            <h1 class="page-title">
+                <i class="fas fa-tags"></i>
+                Expense Types
+            </h1>
+            <p class="page-subtitle">Manage the system's expense types</p>
+        </div>
+        
+        <button class="btn-create" @onclick="CreateExpenseType">
+            <i class="fas fa-plus"></i>
+            Create New Type
+        </button>
+    </div>
+
+    <!-- Message Alert -->
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            @Message
+        </div>
+    }
+
+    <!-- Loading State -->
+    @if (!Loading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Data Table -->
+        <div class="table-container">
+            @if (ExpenseTypes.Any())
+            {
+                <div class="table-wrapper">
+                    <table class="expense-table">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-code"></i> Code</th>
+                                <th><i class="fas fa-tag"></i> Name</th>
+                                <th><i class="fas fa-file-text"></i> Description</th>
+                                <th><i class="fas fa-toggle-on"></i> Status</th>
+                                <th><i class="fas fa-cogs"></i> Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var expenseType in ExpenseTypes)
+                            {
+                                <tr class="table-row">
+                                    <td class="code-cell">
+                                        <span class="code-badge">@expenseType.Code</span>
+                                    </td>
+                                    <td class="name-cell">@expenseType.Name</td>
+                                    <td class="description-cell">@expenseType.Description</td>
+                                    <td class="status-cell">
+                                        <span class="status-badge @(expenseType.Active ? "active" : "inactive")">
+                                            <i class="fas @(expenseType.Active ? "fa-check-circle" : "fa-times-circle")"></i>
+                                            @(expenseType.Active ? "Activo" : "Inactivo")
+                                        </span>
+                                    </td>
+                                    <td class="actions-cell">
+                                        <button class="btn-action btn-edit" @onclick="() => EditExpenseType(expenseType.Code)" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn-action btn-delete" @onclick="() => DeleteExpenseType(expenseType.Code)" title="Eliminar">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No expense types</h3>
+                    <p>Start by creating your first expense type</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Modal para crear/editar tipo de gasto -->
+@if (ShowModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>@(IsEditing ? "Editar" : "Crear") Expense Type</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <EditForm Model="ExpenseTypeModel" OnValidSubmit="SaveExpenseType">
+                    <DataAnnotationsValidator />
+                    
+                    @if (IsEditing)
+                    {
+                        <div class="form-group">
+                            <label for="code">Code:</label>
+                            <InputText id="code" @bind-Value="ExpenseTypeModel.Code" class="form-control" disabled="@IsEditing" />
+                        </div>
+                    }
+                    
+
+                        <div class="form-group">
+                            <label for="name">Name: <span class="required">*</span></label>
+                            <InputText id="name" @bind-Value="ExpenseTypeModel.Name" class="form-control" />
+                            <ValidationMessage For="@(() => ExpenseTypeModel.Name)" />
+                        </div>
+                    
+                    <div class="form-group">
+                        <label for="description">Description: <span class="required">*</span></label>
+                        <InputTextArea id="description" @bind-Value="ExpenseTypeModel.Description" class="form-control" rows="3" />
+                        <ValidationMessage For="@(() => ExpenseTypeModel.Description)" />
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn-save">@(IsEditing ? "Update" : "Save")</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ExpenseType> ExpenseTypes { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
+    public bool Loading { get; set; } = false;
+    public bool ShowModal { get; set; } = false;
+    public bool IsEditing { get; set; } = false;
+    public ExpenseType ExpenseTypeModel { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Loading = false;
+        await LoadData();
+        Loading = true;
+    }
+
+    protected async Task LoadData()
+    {
+        ExpenseTypes = await ExpenseRepo.GetAllAsync();
+    }
+
+    protected async Task<ExpenseType?> FindByCode(string code)
+    {
+        return await ExpenseRepo.GetAsync(code);
+    }
+
+    protected async Task EditExpenseType(string code)
+    {
+        try
+        {
+            var found = await FindByCode(code);
+            if (found is not null)
+            {
+                ExpenseTypeModel = found;
+            }
+            else
+            {
+                CloseModal();
+                Message = $"Expense type with code '{code}' not found.";
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+        }
+
+        IsEditing = true;
+        ShowModal = true;
+    }
+
+    protected void CreateExpenseType()
+    {
+        ExpenseTypeModel = new ExpenseType();
+        IsEditing = false;
+        ShowModal = true;
+    }
+
+    protected void CloseModal()
+    {
+        ShowModal = false;
+        ExpenseTypeModel = new();
+        Message = string.Empty;
+    }
+
+    protected async Task SaveExpenseType()
+    {
+        try
+        {
+            if (IsEditing)
+            {
+                await ExpenseRepo.UpdateAsync(ExpenseTypeModel);
+                Message = "Expense type updated successfully";
+            }
+            else
+            {
+                ExpenseTypeModel.Active = true;
+                await ExpenseRepo.CreateAsync(ExpenseTypeModel);
+                Message = "Expense type created successfully";
+            }
+            
+            await LoadData();
+            CloseModal();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            CloseModal();
+            Message = $"Error: {ex.Message}";
+        }
+    }
+
+    protected async Task DeleteExpenseType(string code)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete the expense type {code}?");
+        if (confirmed)
+        {
+            try
+            {
+            await ExpenseRepo.DeleteAsync(code);
+            Message = "Expense type deleted successfully";
+                await LoadData();
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Message = $"Error deleting expense type: {ex.Message}";
+            }
+        }
+    }
+}

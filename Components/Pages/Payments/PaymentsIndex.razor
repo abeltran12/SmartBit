@@ -1,0 +1,436 @@
+@page "/payments"
+@inject IExpendService ExpendService
+@inject IMonetaryFundService MonetaryService
+@inject IExpenseTypeService ExpenseTypeService
+@attribute [Authorize]
+@inject IJSRuntime JS
+
+<div class="expense-types-container">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="title-container">
+            <h1 class="page-title">
+                <i class="fas fa-money-bill-wave"></i>
+                Payments
+            </h1>
+            <p class="page-subtitle">Manage the system's Payments</p>
+        </div>
+        
+        <button class="btn-create" @onclick="CreatePayment">
+            <i class="fas fa-plus"></i>
+            Create New payment
+        </button>
+    </div>
+
+    <!-- Message Alert -->
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            @Message
+        </div>
+    }
+
+    <!-- Loading State -->
+    @if (Loading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Data Table -->
+        <div class="table-container">
+            @if (Payments.Any())
+            {
+                <div class="table-wrapper">
+                    <table class="expense-table">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-calendar"></i> Date</th>
+                                <th><i class="fas fa-dollar-sign"></i> Amount</th>
+                                <th><i class="fas fa-university"></i> Monetary Fund</th>
+                                <th><i class="fas fa-cogs"></i> Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var payment in Payments)
+                            {
+                                <tr class="table-row">
+                                    <td class="date-cell">@payment.Date.ToShortDateString()</td>
+                                    <td class="amount-cell">@payment.TotalAmount.ToString("C")</td>
+                                    <td class="monetary-fund-cell">@payment.MonetaryFund.Name</td>
+                                    <td class="actions-cell">
+                                        <button class="btn-action btn-edit" @onclick="() => ViewPayment(payment)" title="View">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No Payments</h3>
+                    <p>Start by creating your first payment</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (IsView && selectedExpense != null)
+{
+    <div class="modal-overlay" @onclick="CloseExpenseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Payment Details</h3>
+                <button class="modal-close" @onclick="CloseExpenseModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Encabezado con información general -->
+                <div class="expense-header">
+                    <div class="detail-row">
+                        <strong>Date:</strong>
+                        <span>@selectedExpense.Date.ToString("MMMM dd, yyyy")</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Business Name:</strong>
+                        <span>@selectedExpense.BusinessName</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Document Type:</strong>
+                        <span>@selectedExpense.DocumentType</span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Monetary Fund:</strong>
+                        <span>@selectedExpense.MonetaryFund?.Name</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedExpense.Observations))
+                    {
+                        <div class="detail-row">
+                            <strong>Observations:</strong>
+                            <span>@selectedExpense.Observations</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Tabla de detalles de gastos -->
+                @if (selectedExpense.ExpenseDetails?.Any() == true)
+                {
+                    <div class="expense-details-section">
+                        <h4>Expense Breakdown</h4>
+                        <table class="expense-details-table">
+                            <thead>
+                                <tr>
+                                    <th>Expense Type</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var detail in selectedExpense.ExpenseDetails)
+                                {
+                                    <tr>
+                                        <td>@detail.ExpenseType?.Name</td>
+                                        <td class="amount-cell">$@detail.Amount.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr class="total-row">
+                                    <td><strong>Total Amount:</strong></td>
+                                    <td class="amount-cell"><strong>$@selectedExpense.TotalAmount.ToString("N2")</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowModal && !IsView)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-content modal-standard" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Create New Expense</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="ExpenseModel" OnValidSubmit="SaveExpense">
+                    <DataAnnotationsValidator />
+                    
+                    <!-- Expense Header Information -->
+                    <div class="form-section">
+                        <h4>Expense Information</h4>
+                        <div class="form-grid">
+                           <div class="form-group">
+                                <label for="date">Date <span class="required">*</span> (Year 2025 only)</label>
+                                <InputDate id="date" @bind-Value="ExpenseModel.Date" 
+                                        class="form-control"
+                                        min="2025-01-01" 
+                                        max="2025-12-31" />
+                                <ValidationMessage For="@(() => ExpenseModel.Date)" />
+                                <small class="form-text text-muted">Only dates from 2025 are allowed</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="businessName">Business Name <span class="required">*</span></label>
+                                <InputText id="businessName" @bind-Value="ExpenseModel.BusinessName" 
+                                          class="form-control" maxlength="200" placeholder="Enter business name" />
+                                <ValidationMessage For="@(() => ExpenseModel.BusinessName)" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="documentType">Document Type <span class="required">*</span></label>
+                                <InputSelect id="documentType" @bind-Value="ExpenseModel.DocumentType" class="form-control">
+                                    <option value="">Select Document Type</option>
+                                    @foreach (var docType in Enum.GetValues<DocumentType>())
+                                    {
+                                        <option value="@docType">@docType.ToString()</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => ExpenseModel.DocumentType)" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="monetaryFund">Monetary Fund <span class="required">*</span></label>
+                                <InputSelect id="monetaryFund" 
+                                    @bind-Value="ExpenseModel.MonetaryFundId" class="form-control">
+                                    <option value="">Select Monetary Fund</option>
+                                    @foreach (var fund in MonetaryFunds)
+                                    {
+                                        <option value="@fund.Id">@fund.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => ExpenseModel.MonetaryFundId)" />
+                            </div>
+
+                            <div class="form-group form-group-full">
+                                <label for="observations">Observations</label>
+                                <InputTextArea id="observations" @bind-Value="ExpenseModel.Observations" 
+                                              class="form-control" maxlength="500" rows="3" 
+                                              placeholder="Additional notes or observations (optional)" />
+                                <ValidationMessage For="@(() => ExpenseModel.Observations)" />
+                                <small class="form-text text-muted">
+                                    @(ExpenseModel.Observations?.Length ?? 0)/500 characters
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expense Details Section -->
+                    <div class="form-section">
+                        <div class="section-header">
+                            <h4>Expense Details</h4>
+                            <button type="button" class="btn btn-primary btn-sm" @onclick="AddExpenseDetail">
+                                <i class="fas fa-plus"></i> Add Detail
+                            </button>
+                        </div>
+                        
+                        @if (ExpenseDetails.Any())
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Expense Type <span class="required">*</span></th>
+                                            <th>Amount <span class="required">*</span></th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (int i = 0; i < ExpenseDetails.Count; i++)
+                                        {
+                                            var index = i;
+                                            <tr>
+                                                <td>
+                                                    <InputSelect @bind-Value="ExpenseDetails[index].ExpenseTypeId" 
+                                                               class="form-control form-control-sm">
+                                                        <option value="">Select Expense Type</option>
+                                                        @foreach (var expenseType in ExpenseTypes)
+                                                        {
+                                                            <option value="@expenseType.Code">@expenseType.Name</option>
+                                                        }
+                                                    </InputSelect>
+                                                    <ValidationMessage For="@(() => ExpenseDetails[index].ExpenseTypeId)" />
+                                                </td>
+                                                <td>
+                                                    <InputNumber @bind-Value="ExpenseDetails[index].Amount" 
+                                                               class="form-control form-control-sm" 
+                                                               placeholder="0.00" 
+                                                               step="0.01" />
+                                                    <ValidationMessage For="@(() => ExpenseDetails[index].Amount)" />
+                                                </td>
+                                                <td>
+                                                    <button type="button" class="btn btn-danger btn-sm" 
+                                                            @onclick="() => RemoveExpenseDetail(index)">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="table-info">
+                                            <td><strong>Total:</strong></td>
+                                            <td><strong>$@(ExpenseDetails.Sum(d => d.Amount).ToString("N2"))</strong></td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" @onclick="CloseModal">Cancel</button>
+
+                        <button type="submit" class="btn-save">Save</button>
+                        
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Expense> Payments { get; set; } = new();
+    private Expense? selectedExpense { get; set; } = null;
+    private List<MonetaryFund> MonetaryFunds { get; set; } = new();
+    private List<ExpenseType> ExpenseTypes { get; set; } = new();
+    private List<ExpenseDetail> ExpenseDetails { get; set; } = new();
+
+    public string Message = "";
+    public bool Loading { get; set; } = false;
+    public bool ShowModal { get; set; } = false;
+    public bool IsView { get; set; } = false;
+    public Expense ExpenseModel { get; set; } = new();    
+    
+    protected override async Task OnInitializedAsync()
+    {
+        Loading = true;
+        await LoadData();
+        await LoadMonetaryFunds();
+        await LoadExpenseTypes();
+        Loading = false;
+    }
+
+    protected async Task LoadData()
+    {
+        try
+        {
+            Payments = await ExpendService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error loading data: {ex.Message}";
+        }
+    }
+
+    protected async Task LoadMonetaryFunds()
+    {
+        try
+        {
+            MonetaryFunds = await MonetaryService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error loading data: {ex.Message}";
+        }
+    }
+
+    protected async Task LoadExpenseTypes()
+    {
+        try
+        {
+            ExpenseTypes = await ExpenseTypeService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error loading data: {ex.Message}";
+        }
+    }
+
+    protected void CreatePayment()
+    {
+        ExpenseModel = new Expense();
+        ExpenseDetails = new();
+        ExpenseModel.Date = DateTime.Now;
+        ExpenseModel.MonetaryFundId = Guid.Empty;
+        IsView = false;
+        ShowModal = true;
+    }
+
+    protected void ViewPayment(Expense expense)
+    {
+        selectedExpense = expense;
+        IsView = true;
+    }
+
+    protected void CloseModal()
+    {
+        ShowModal = false;
+        ExpenseModel = new();
+        Message = string.Empty;
+    }
+
+    protected async Task SaveExpense()
+    {
+        try
+        {
+            foreach (var detail in ExpenseDetails)
+            {
+                ExpenseModel.ExpenseDetails.Add(detail);
+            }
+            await ExpendService.CreateAsync(ExpenseModel);
+            Message = "Expense created successfully";
+                        
+            await LoadData();
+            CloseModal();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            CloseModal();
+            Message = $"Error: {ex.Message}";
+        }
+    }
+
+    private void CloseExpenseModal()
+    {
+        IsView = false;
+        selectedExpense = null;
+    }
+
+    private void AddExpenseDetail()
+    {
+        ExpenseDetails.Add(new ExpenseDetail
+        {
+            ExpenseId = ExpenseModel.Id,
+            Amount = 0,
+            ExpenseTypeId = string.Empty
+        });
+    }
+
+    private void RemoveExpenseDetail(int index)
+    {
+        if (index >= 0 && index < ExpenseDetails.Count)
+        {
+            ExpenseDetails.RemoveAt(index);
+        }
+    }
+}

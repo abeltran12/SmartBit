@@ -1,0 +1,262 @@
+@page "/monetary-funds"
+@attribute [Authorize]
+@inject IMonetaryFundService Repo
+@inject IJSRuntime JS
+
+<div class="expense-types-container">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="title-container">
+            <h1 class="page-title">
+                <i class="fas fa-layer-group"></i>
+                Monetary Fund
+            </h1>
+            <p class="page-subtitle">Manage the system's monetary funds</p>
+        </div>
+        
+        <button class="btn-create" @onclick="CreateMonetaryFund">
+            <i class="fas fa-plus"></i>
+            Create New Monetary Fund
+        </button>
+    </div>
+
+    <!-- Message Alert -->
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            @Message
+        </div>
+    }
+
+    <!-- Loading State -->
+    @if (!Loading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Data Table -->
+        <div class="table-container">
+            @if (MonetaryFunds.Any())
+            {
+                <div class="table-wrapper">
+                    <table class="expense-table">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-code"></i> Id</th>
+                                <th><i class="fas fa-tag"></i> Name</th>
+                                <th><i class="fas fa-file-text"></i> Type</th>
+                                <th><i class="fas fa-toggle-on"></i> Status</th>
+                                <th><i class="fas fa-cogs"></i> Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var monetaryFund in MonetaryFunds)
+                            {
+                                <tr class="table-row">
+                                    <td class="code-cell">
+                                        <span class="code-badge">@monetaryFund.Id</span>
+                                    </td>
+                                    <td class="name-cell">@monetaryFund.Name</td>
+                                    <td class="type-cell"> @monetaryFund.Type</td>
+                                    <td class="status-cell">
+                                        <span class="status-badge @(monetaryFund.Active ? "active" : "inactive")">
+                                            <i class="fas @(monetaryFund.Active ? "fa-check-circle" : "fa-times-circle")"></i>
+                                            @(monetaryFund.Active ? "Activo" : "Inactivo")
+                                        </span>
+                                    </td>
+                                    <td class="actions-cell">
+                                        <button class="btn-action btn-edit" @onclick="() => EditMonetaryFund(monetaryFund.Id)" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn-action btn-delete" @onclick="() => DeleteMonetaryFund(monetaryFund.Id)" title="Eliminar">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No monetary funds</h3>
+                    <p>Start by creating your first monetary fund</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (ShowModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>@(IsEditing ? "Update" : "Create") Monetary Fund</h3>
+                <button class="modal-close" @onclick="CloseModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <EditForm Model="MonetaryFundModel" OnValidSubmit="SaveMonetaryFund">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="form-group">
+                        <label for="name">Name: <span class="required">*</span></label>
+                        <InputText id="name" @bind-Value="MonetaryFundModel.Name" class="form-control" />
+                        <ValidationMessage For="@(() => MonetaryFundModel.Name)" />
+                    </div>
+                    
+                    @if (!IsEditing)
+                    {
+                        <div class="form-group">
+                            <label for="type">Type: <span class="required">*</span></label>
+                            <InputSelect @bind-Value="MonetaryFundModel.Type" class="form-control" id="type">
+                                @foreach (var type in Enum.GetValues<TypeMonetaryFund>())
+                                {
+                                    <option value="@type">@TypeMonetaryFundHelper.GetDisplayName(type)</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => MonetaryFundModel.Type)" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-group">
+                            <label for="type">Type: <span class="required">*</span></label>
+                            <input type="text" 
+                                value="@TypeMonetaryFundHelper.GetDisplayName(MonetaryFundModel.Type)" 
+                                readonly 
+                                class="form-control" 
+                                style="background-color: #f8f9fa;" />
+                        </div>
+                    }
+                    
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" @onclick="CloseModal">Cancel</button>
+                        <button type="submit" class="btn-save">@(IsEditing ? "Update" : "Save")</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<MonetaryFund> MonetaryFunds { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
+    public bool Loading { get; set; } = false;
+    public bool ShowModal { get; set; } = false;
+    public bool IsEditing { get; set; } = false;
+    public MonetaryFund MonetaryFundModel { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Loading = false;
+        await LoadData();
+        Loading = true;
+    }
+
+    protected async Task LoadData()
+    {
+        MonetaryFunds = await Repo.GetAllAsync();
+    }
+
+    protected async Task<MonetaryFund?> FindByCode(Guid id)
+    {
+        return await Repo.GetAsync(id);
+    }
+
+    protected async Task EditMonetaryFund(Guid code)
+    {
+        try
+        {
+            var found = await FindByCode(code);
+            if (found is not null)
+            {
+                MonetaryFundModel = found;
+            }
+            else
+            {
+                Message = $"Expense type with code '{code}' not found.";
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+        }
+
+        IsEditing = true;
+        ShowModal = true;
+    }
+
+    protected void CreateMonetaryFund()
+    {
+        MonetaryFundModel = new MonetaryFund();
+        IsEditing = false;
+        ShowModal = true;
+    }
+
+    protected void CloseModal()
+    {
+        ShowModal = false;
+        MonetaryFundModel = new();
+        Message = string.Empty;
+    }
+
+    protected async Task SaveMonetaryFund()
+    {
+        try
+        {
+            if (IsEditing)
+            {
+                await Repo.UpdateAsync(MonetaryFundModel);
+                Message = "Monetary Fund updated successfully";
+            }
+            else
+            {
+                await Repo.CreateAsync(MonetaryFundModel);
+                Message = "Monetary Fund created successfully";
+            }
+            
+            await LoadData();
+            CloseModal();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            CloseModal();
+            Message = $"Error: {ex.Message}";
+        }
+    }
+
+    protected async Task DeleteMonetaryFund(Guid id)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete the monetary fund {id}?");
+        if (confirmed)
+        {
+            try
+            {
+                await Repo.DeleteAsync(id);
+                Message = "Monetary fund deleted successfully";
+                    await LoadData();
+                    StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Message = $"Error deleting monetary fund: {ex.Message}";
+            }
+        }
+    }
+}
