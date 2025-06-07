@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SmartBit")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0a26b6f3d7a11ab2afbaebf8c66edfc6a5027c45")]
 [assembly: System.Reflection.AssemblyProductAttribute("SmartBit")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SmartBit")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
